@@ -24,11 +24,18 @@
 # Convert a message to include branch name information.
 class Transmogrifier < Struct.new(:message, :branchname)
   NOREF_MATCHER  = /#noref/
-  PREFIX_MATCHER = /\A(\w{2,}-\d{1,})[-_]/
+  PREFIX_MATCHER = /\A(\w{2,}-\d{1,})[-_]/ # Without folder
+  PREFIX_MATCHER_FOLDERS = /.*\/(\w{2,}-\d{1,})[-_]/ # With folder
   PREFIX_FORMAT = "%s %s"
 
   def prefix
-    (branchname.to_s[PREFIX_MATCHER, 1] || "").strip.upcase
+    a = (branchname.to_s[PREFIX_MATCHER, 1] || "").strip.upcase
+
+    if a =~ /\S/
+      return a
+    end
+
+    (branchname.to_s[PREFIX_MATCHER_FOLDERS, 1] || "").strip.upcase
   end
 
   def to_s
@@ -90,7 +97,7 @@ else
     commit(msg); assert_equal(top_message, expected_message)
   end
 
-  change_branch "r3po-421_some_cool_feature"
+  change_branch "r3po/r3po-421_some_cool_feature"
   commit_and_check "new stuff"                 , "new stuff R3PO-421"
   commit_and_check "new stuff r3po-421"        , "new stuff r3po-421"
   commit_and_check "don't mess with me #noref" , "don't mess with me"
@@ -100,7 +107,7 @@ else
   commit_and_check "new stuff R3PO-421"        , "new stuff R3PO-421"
   commit_and_check "don't mess with me #noref" , "don't mess with me"
 
-  change_branch "io-2_some_cool_feature"
+  change_branch "IO/io-2_some_cool_feature"
   commit_and_check "new stuff"                 , "new stuff IO-2"
   commit_and_check "new stuff io-2"        , "new stuff io-2"
   commit_and_check "don't mess with me #noref" , "don't mess with me"
