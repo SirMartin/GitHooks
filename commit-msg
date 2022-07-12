@@ -1,0 +1,125 @@
+#!/usr/bin/env ruby
+#
+# Git commit-msg hook. If your branch name is following Jira like convention in the form "ABCD-123-whatever", or
+# "ABCD-123_whatever", it automatically adds the prefix "ABCD-123" to commit
+# messages.
+#
+# If you include "#noref" in the commit message, nothing will be added to the
+# commit message, and the "#noref" itself will be stripped.
+#
+# Install:
+#
+#   cp commit-msg your_project/.git/hooks
+#
+# Testing:
+#
+# git init a new repo, install the commit hook, and run:
+#
+#   ruby .git/hooks/commit-msg testing
+#
+# SirMartin (2022), adapted from https://gist.github.com/EmmanuelOga/8867742 By Emmanuel Oga and Henrik Nyh
+# <http://henrik.nyh.se> 2009-09-10 under the MIT License.
+#
+
+# Convert a message to include branch name information.
+class Transmogrifier < Struct.new(:message, :branchname)
+  NOREF_MATCHER  = /#noref/
+  PREFIX_MATCHER = /\A(\w{2,}-\d{1,})[-_]/
+  PREFIX_FORMAT = "%s %s"
+
+  def prefix
+    (branchname.to_s[PREFIX_MATCHER, 1] || "").strip.upcase
+  end
+
+  def to_s
+    return message unless prefix =~ /\S/
+
+    if message =~ NOREF_MATCHER
+      output = message.gsub(NOREF_MATCHER, "")
+
+    elsif message.downcase.include?(prefix.downcase)
+      output = message
+
+    else
+      output = PREFIX_FORMAT % [message, prefix.upcase]
+    end
+
+    output.squeeze(" ").strip
+  end
+end
+
+# Overwrites the file which holds the commit message with a fancier one.
+def run!
+  branchname   = `git branch --no-color 2> /dev/null`[/^\* (.+)/, 1].to_s
+  message_path = ARGV.first
+  message      = File.read(message_path).strip.chomp
+
+  File.open(message_path, 'w') {|f| f.write Transmogrifier.new(message, branchname) }
+end
+
+if ARGV.first != "testing"
+  run!
+
+else
+  ################################################################################
+  # TESTS
+  ################################################################################
+
+  puts "This will commit stuff to your repo! Do you want to proceed? [yes/n]: "
+  abort unless $stdin.gets.chomp.downcase == "yes"
+
+  require 'shellwords'
+
+  def change_branch(name)
+    `git checkout -B #{name}`
+  end
+
+  def commit(msg)
+    `echo 'testing' >> a; git add a; git commit -m #{msg.shellescape}`
+  end
+
+  def top_message
+    `git log --format="%s" -n1`.chomp
+  end
+
+  def assert_equal(a, b)
+    abort "\nFailure!\n#{a.inspect} != #{b.inspect}\n#{caller.join("\n")}" unless a == b
+  end
+
+  def commit_and_check(msg, expected_message)
+    commit(msg); assert_equal(top_message, expected_message)
+  end
+
+  change_branch "r3po-421_some_cool_feature"
+  commit_and_check "new stuff"                 , "new stuff R3PO-421"
+  commit_and_check "new stuff r3po-421"        , "new stuff r3po-421"
+  commit_and_check "don't mess with me #noref" , "don't mess with me"
+
+  change_branch "R3PO-421-some-cool-feature"
+  commit_and_check "new stuff"                 , "new stuff R3PO-421"
+  commit_and_check "new stuff R3PO-421"        , "new stuff R3PO-421"
+  commit_and_check "don't mess with me #noref" , "don't mess with me"
+
+  change_branch "io-2_some_cool_feature"
+  commit_and_check "new stuff"                 , "new stuff IO-2"
+  commit_and_check "new stuff io-2"        , "new stuff io-2"
+  commit_and_check "don't mess with me #noref" , "don't mess with me"
+
+  change_branch "IO-13-some-cool-feature"
+  commit_and_check "new stuff"                 , "new stuff IO-13"
+  commit_and_check "new stuff IO-13"        , "new stuff IO-13"
+  commit_and_check "don't mess with me #noref" , "don't mess with me"
+
+  change_branch "some-feature-without-a-task"
+  commit_and_check "does not change the message"          , "does not change the message"
+  commit_and_check "does not change the message r3po-421" , "does not change the message r3po-421"
+  commit_and_check "it doesn't remove the #noref"         , "it doesn't remove the #noref"
+
+  change_branch "master"
+  commit_and_check "does not change the message"          , "does not change the message"
+  commit_and_check "does not change the message r3po-421" , "does not change the message r3po-421"
+  commit_and_check "it doesn't remove the #noref"         , "it doesn't remove the #noref"
+
+
+  puts "\nAll tests passed."
+end
