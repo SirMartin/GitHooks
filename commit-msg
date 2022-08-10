@@ -11,6 +11,10 @@
 #
 #   cp commit-msg your_project/.git/hooks
 #
+# Logging:
+#
+#  You can enable the logs to trace it, in case something is wrong. Just set to true the LOG_ENABLED constant.
+#
 # Testing:
 #
 # git init a new repo, install the commit hook, and run:
@@ -39,19 +43,61 @@ class Transmogrifier < Struct.new(:message, :branchname)
   end
 
   def to_s
+    log("a")
+    log("prefix " + prefix)
     return message unless prefix =~ /\S/
 
+    log("b")
     if message =~ NOREF_MATCHER
+      log("c")
       output = message.gsub(NOREF_MATCHER, "")
+      log("d " + output)
 
     elsif message.downcase.include?(prefix.downcase)
+      log("e " + message)
       output = message
+      log("f " + output)
 
     else
+      log("g")
       output = PREFIX_FORMAT % [message, prefix.upcase]
+      log("h " + output)
     end
 
-    output.squeeze(" ").strip
+    log("i " + output)
+    output = output.squeeze(" ").strip
+    log("j " + output)
+    return output
+  end
+end
+
+# Use it for debugging, enable or disable the log feature in the hook.
+LOG_PATH = "log_hook.txt"
+LOG_ENABLED = false
+
+def read_message(message_path)
+  message = ""
+  File.readlines(message_path).each do |line|
+  log("line " + line)
+  message.concat(line) unless line.start_with?("#")
+  end
+  log("trimmed message " + message.strip.chomp)
+  message.strip.chomp
+end
+
+def start_log(message_path)
+  if LOG_ENABLED
+    File.open(LOG_PATH,"w") do |line|
+    line.puts "\r" + "Path: " + message_path
+    end
+  end  
+end
+
+def log(msg)
+  if LOG_ENABLED
+    File.open(LOG_PATH,"a") do |line|
+    line.puts "\r" + msg
+    end
   end
 end
 
@@ -59,9 +105,13 @@ end
 def run!
   branchname   = `git branch --no-color 2> /dev/null`[/^\* (.+)/, 1].to_s
   message_path = ARGV.first
-  message      = File.read(message_path).strip.chomp
+  start_log(message_path)
+  message = read_message(message_path)
+  log(message)
 
-  File.open(message_path, 'w') {|f| f.write Transmogrifier.new(message, branchname) }
+  output = Transmogrifier.new(message, branchname).to_s
+  log("output " + output)
+  File.open(message_path, 'w') {|f| f.write output }
 end
 
 if ARGV.first != "testing"
