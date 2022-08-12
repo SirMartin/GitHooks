@@ -77,7 +77,7 @@ end
 
 # Use it for debugging, enable or disable the log feature in the hook.
 LOG_PATH = "log_hook.txt"
-LOG_ENABLED = true
+LOG_ENABLED = false
 WRITE_BRANCH_ID_AS_PREFIX = false
 
 def read_message(message_path)
