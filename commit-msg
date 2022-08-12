@@ -60,7 +60,11 @@ class Transmogrifier < Struct.new(:message, :branchname)
 
     else
       log("g")
-      output = PREFIX_FORMAT % [message, prefix.upcase]
+      if WRITE_BRANCH_ID_AS_PREFIX
+        output = PREFIX_FORMAT % [prefix.upcase, message]
+      else
+        output = PREFIX_FORMAT % [message, prefix.upcase]
+      end
       log("h " + output)
     end
 
@@ -73,7 +77,8 @@ end
 
 # Use it for debugging, enable or disable the log feature in the hook.
 LOG_PATH = "log_hook.txt"
-LOG_ENABLED = false
+LOG_ENABLED = true
+WRITE_BRANCH_ID_AS_PREFIX = false
 
 def read_message(message_path)
   message = ""
